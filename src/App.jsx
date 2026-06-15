@@ -13,11 +13,17 @@ import {
   User, LogOut, BookOpen, Lock
 } from 'lucide-react';
 
-const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+const firebaseConfig = {
+  apiKey: "AIzaSyCGJLpVAXZMm2US7S-bwjNjyJtf0VsSV2Y",
+  authDomain: "authorsafe.firebaseapp.com",
+  projected: "authorsafe",
+  storageBucket: "authorsafe.firebasestorage.app",
+  messagingSenderId: "453655231430",
+  appId: "1:453655231430:web:d94246f4574e70f4ed90c7"
+};
+
+// Initialize Firebase
 const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db = getFirestore(app);
-const appId = typeof __app_id !== 'undefined' ? __app_id : 'writer-dashboard-v3';
 
 // ==========================================
 // KOMPONEN UTAMA: ROUTER & LAYOUT
