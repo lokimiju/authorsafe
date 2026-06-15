@@ -6,7 +6,7 @@ import {
   GoogleAuthProvider, signInWithPopup, sendPasswordResetEmail
 } from 'firebase/auth';
 import { 
-  getFirestore, collection, doc, setDoc, getDoc, updateDoc, onSnapshot 
+  getFirestore, collection, doc, setDoc, getDoc, updateDoc, onSnapshot, deleteDoc
 } from 'firebase/firestore';
 import { 
   Clock, ShieldAlert, Link as LinkIcon, PlusCircle, Copy, AlertTriangle, 
@@ -24,8 +24,6 @@ const firebaseConfig = {
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
-
-// 3 BARIS INI KEMUNGKINAN BESAR HILANG DI KODINGANMU, TAMBAHKAN SEKARANG:
 const auth = getAuth(app);
 const db = getFirestore(app);
 const appId = 'writer-dashboard-v3';
@@ -35,16 +33,16 @@ const appId = 'writer-dashboard-v3';
 // ==========================================
 export default function App() {
   const [user, setUser] = useState(null);
-  const [view, setView] = useState('reader'); // Default view untuk klien (Pembaca)
+  const [view, setView] = useState('reader'); 
   const [loading, setLoading] = useState(true);
+  const [isAuthReady, setIsAuthReady] = useState(false); // FITUR 2: Penahan loading agar tidak auto-logout
 
   useEffect(() => {
-    // WAJIB: Otentikasi awal (Anonim untuk Pembaca)
     const initAuth = async () => {
       try {
         if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
           await signInWithCustomToken(auth, __initial_auth_token);
-        } else {
+        } else if (!auth.currentUser) {
           await signInAnonymously(auth);
         }
       } catch (err) {
@@ -55,35 +53,45 @@ export default function App() {
 
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
+      setIsAuthReady(true); // Firebase selesai mengecek sesi
       setLoading(false);
     });
 
     return () => unsubscribe();
   }, []);
 
-  if (loading) return <div className="flex h-screen items-center justify-center bg-slate-50"><p className="text-indigo-500 animate-pulse font-medium">Menghubungkan ke Server Cloud...</p></div>;
+  // Tahan layar putih sebentar jika Firebase sedang memvalidasi memori login
+  if (!isAuthReady || loading) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-slate-50">
+        <div className="flex flex-col items-center gap-3">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-600"></div>
+          <p className="text-emerald-700 animate-pulse font-medium text-sm">Menghubungkan ke Server...</p>
+        </div>
+      </div>
+    );
+  }
 
   const handleLogout = async () => {
     await signOut(auth);
-    // Setelah logout, jadikan anonim lagi agar fitur pembaca tetap jalan
     await signInAnonymously(auth);
     setView('reader');
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 font-sans text-slate-800 selection:bg-indigo-200 selection:text-indigo-900">
-      {/* Navbar Premium & Responsive */}
+    <div className="min-h-screen bg-slate-50 font-sans text-slate-800 selection:bg-emerald-200 selection:text-emerald-900">
+      {/* Navbar */}
       <nav className="bg-white/80 backdrop-blur-md sticky top-0 z-50 shadow-sm border-b border-slate-200 px-4 sm:px-6 py-3 sm:py-4 flex flex-row justify-between items-center gap-2 sm:gap-4 w-full">
-        <h1 className="text-xl sm:text-2xl font-bold text-indigo-700 flex items-center gap-1.5 shrink-0">
+        <h1 className="text-xl sm:text-2xl font-bold text-emerald-700 flex items-center gap-1.5 shrink-0">
           <ShieldAlert className="w-6 h-6 sm:w-7 sm:h-7" />
-          <span className="hidden xs:inline">WriterSecure</span>
-          <span className="text-[10px] sm:text-xs font-normal text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full ml-1 whitespace-nowrap">Cloud V3</span>
+          <span className="hidden xs:inline text-black">WriterSecure</span>
+          <span className="text-[10px] sm:text-xs font-bold text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full ml-1 whitespace-nowrap">Cloud V3</span>
         </h1>
         
         <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
           <button 
             onClick={() => setView('reader')}
-            className={`px-3 sm:px-4 py-2 rounded-xl text-sm sm:text-base font-medium transition-all duration-300 flex items-center gap-1.5 ${view === 'reader' ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'}`}
+            className={`px-3 sm:px-4 py-2 rounded-xl text-sm sm:text-base font-bold transition-all duration-300 flex items-center gap-1.5 ${view === 'reader' ? 'bg-emerald-600 text-white shadow-md shadow-emerald-200' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'}`}
           >
             <BookOpen className="w-4 h-4 sm:w-5 sm:h-5"/> 
             <span className="hidden sm:inline">Akses Klien</span>
@@ -91,7 +99,7 @@ export default function App() {
           </button>
           <button 
             onClick={() => setView('admin')}
-            className={`px-3 sm:px-4 py-2 rounded-xl text-sm sm:text-base font-medium transition-all duration-300 flex items-center gap-1.5 ${view === 'admin' ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'}`}
+            className={`px-3 sm:px-4 py-2 rounded-xl text-sm sm:text-base font-bold transition-all duration-300 flex items-center gap-1.5 ${view === 'admin' ? 'bg-emerald-600 text-white shadow-md shadow-emerald-200' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'}`}
           >
             <Lock className="w-4 h-4 sm:w-5 sm:h-5"/> 
             <span className="hidden sm:inline">Ruang Penulis</span>
@@ -107,7 +115,6 @@ export default function App() {
       </nav>
 
       <main className="p-4 sm:p-6 max-w-6xl mx-auto w-full overflow-hidden">
-        {/* Logika Tampilan Berdasarkan Status Login */}
         {view === 'reader' && <ReaderSimulator user={user} />}
         {view === 'admin' && (
           user?.isAnonymous ? <AuthScreen /> : <AdminDashboard user={user} />
@@ -145,12 +152,11 @@ function AuthScreen() {
       if (err.code === 'auth/email-already-in-use') setError('Email ini sudah terdaftar.');
       else if (err.code === 'auth/wrong-password') setError('Password salah.');
       else if (err.code === 'auth/user-not-found') setError('Email belum terdaftar.');
-      else setError('Terjadi kesalahan. Pastikan email valid & password min 6 karakter.');
+      else setError('Terjadi kesalahan. Pastikan format email valid.');
     }
     setIsProcessing(false);
   };
 
-  // Fungsi Login Menggunakan Google
   const handleGoogleLogin = async () => {
     setError('');
     setInfoMsg('');
@@ -160,27 +166,25 @@ function AuthScreen() {
       await signInWithPopup(auth, provider);
     } catch (err) {
       console.error(err);
-      setError('Gagal login dengan akun Google. Silakan coba lagi.');
+      setError('Gagal login dengan akun Google.');
     }
     setIsProcessing(false);
   };
 
-  // Fungsi Kirim Tautan Reset Password
   const handleResetPassword = async () => {
     setError('');
     setInfoMsg('');
     if (!email) {
-      setError('Masukkan alamat email Anda di kolom email, lalu klik "Lupa Password?".');
+      setError('Masukkan alamat email di atas terlebih dahulu, lalu klik Lupa Password.');
       return;
     }
     setIsProcessing(true);
     try {
       await sendPasswordResetEmail(auth, email);
-      setInfoMsg('Tautan reset password telah dikirim. Silakan cek kotak masuk atau spam email Anda.');
+      setInfoMsg('Tautan reset password telah dikirim ke email Anda.');
     } catch (err) {
       console.error(err);
-      if (err.code === 'auth/user-not-found') setError('Email tersebut belum terdaftar.');
-      else setError('Gagal mengirim email reset. Pastikan format email Anda benar.');
+      setError('Gagal mengirim email reset.');
     }
     setIsProcessing(false);
   };
@@ -188,7 +192,7 @@ function AuthScreen() {
   return (
     <div className="max-w-md mx-auto bg-white p-6 sm:p-8 rounded-3xl shadow-sm border border-slate-200 mt-6 sm:mt-10">
       <div className="text-center mb-8">
-        <div className="w-16 h-16 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center mx-auto mb-4 rotate-3">
+        <div className="w-16 h-16 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center mx-auto mb-4 rotate-3">
           <User className="w-8 h-8 -rotate-3" />
         </div>
         <h2 className="text-2xl font-bold text-slate-800">Ruang Khusus Penulis</h2>
@@ -197,48 +201,46 @@ function AuthScreen() {
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1.5">Email</label>
+          <label className="block text-sm font-bold text-slate-700 mb-1.5">Email</label>
           <input 
             type="email" required value={email} onChange={(e) => setEmail(e.target.value)}
-            className="w-full px-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all"
+            className="w-full px-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all"
             placeholder="nama@email.com"
           />
         </div>
         <div>
           <div className="flex justify-between items-center mb-1.5">
-            <label className="block text-sm font-medium text-slate-700">Password</label>
+            <label className="block text-sm font-bold text-slate-700">Password</label>
             {isLogin && (
-              <button type="button" onClick={handleResetPassword} className="text-xs text-indigo-600 hover:text-indigo-800 font-bold transition-colors">
+              <button type="button" onClick={handleResetPassword} className="text-xs text-emerald-600 hover:text-emerald-800 font-bold transition-colors">
                 Lupa Password?
               </button>
             )}
           </div>
           <input 
             type="password" required={isLogin} value={password} onChange={(e) => setPassword(e.target.value)}
-            className="w-full px-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all"
+            className="w-full px-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all"
             placeholder="Minimal 6 karakter"
           />
         </div>
         
-        {error && <p className="text-rose-600 text-sm font-medium bg-rose-50 border border-rose-100 p-3 rounded-xl animate-fade-in">{error}</p>}
-        {infoMsg && <p className="text-emerald-700 text-sm font-medium bg-emerald-50 border border-emerald-100 p-3 rounded-xl animate-fade-in">{infoMsg}</p>}
+        {error && <p className="text-rose-600 text-sm font-medium bg-rose-50 border border-rose-100 p-3 rounded-xl">{error}</p>}
+        {infoMsg && <p className="text-emerald-700 text-sm font-medium bg-emerald-50 border border-emerald-100 p-3 rounded-xl">{infoMsg}</p>}
 
         <button 
           type="submit" disabled={isProcessing}
-          className="w-full bg-slate-900 hover:bg-slate-800 text-white py-3 rounded-xl font-medium transition-all shadow-md active:scale-95 disabled:opacity-50 mt-4"
+          className="w-full bg-black hover:bg-slate-800 text-white py-3 rounded-xl font-bold transition-all shadow-md active:scale-95 disabled:opacity-50 mt-4"
         >
           {isProcessing ? 'Memproses...' : (isLogin ? 'Masuk dengan Email' : 'Daftar Akun Baru')}
         </button>
       </form>
 
-      {/* Pembatas "Atau masuk dengan" */}
       <div className="mt-6 flex items-center justify-between">
         <span className="w-1/5 border-b border-slate-200"></span>
-        <span className="text-xs text-slate-400 font-medium uppercase tracking-wider">Atau masuk dengan</span>
+        <span className="text-xs text-slate-400 font-bold uppercase tracking-wider">Atau masuk dengan</span>
         <span className="w-1/5 border-b border-slate-200"></span>
       </div>
 
-      {/* Tombol Login Google */}
       <button 
         onClick={handleGoogleLogin} disabled={isProcessing}
         className="w-full mt-6 bg-white border-2 border-slate-200 hover:bg-slate-50 text-slate-700 py-3 rounded-xl font-bold transition-all flex items-center justify-center gap-3 active:scale-95 disabled:opacity-50"
@@ -254,7 +256,7 @@ function AuthScreen() {
 
       <div className="mt-8 text-center text-sm text-slate-600">
         {isLogin ? "Belum punya akun?" : "Sudah punya akun?"}
-        <button onClick={() => {setIsLogin(!isLogin); setError(''); setInfoMsg('');}} className="text-indigo-600 font-bold ml-1 hover:text-indigo-700 hover:underline">
+        <button onClick={() => {setIsLogin(!isLogin); setError(''); setInfoMsg('');}} className="text-emerald-600 font-bold ml-1 hover:text-emerald-700 hover:underline">
           {isLogin ? 'Daftar Sekarang' : 'Masuk di sini'}
         </button>
       </div>
@@ -269,44 +271,58 @@ function AdminDashboard({ user }) {
   const [stories, setStories] = useState([]);
   const [tokens, setTokens] = useState([]);
   
-  // State Form Cerita
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [isSaving, setIsSaving] = useState(false);
 
-  // State Form Tautan
   const [selectedStory, setSelectedStory] = useState('');
   const [duration, setDuration] = useState('30');
   const [isGenerating, setIsGenerating] = useState(false);
   const [copied, setCopied] = useState('');
 
-  // 1. Sinkronisasi Data Cloud Berdasarkan Akun (Email/UID)
   useEffect(() => {
     if (!user || user.isAnonymous) return;
 
-    // Ambil Cerita
     const storiesRef = collection(db, 'artifacts', appId, 'public', 'data', 'stories');
     const unsubStories = onSnapshot(storiesRef, (snapshot) => {
       const allStories = snapshot.docs.map(doc => doc.data());
-      // Filter: Hanya tampilkan cerita milik akun yang sedang login!
       const myStories = allStories.filter(s => s.authorId === user.uid).sort((a,b) => b.createdAt - a.createdAt);
       setStories(myStories);
       if (myStories.length > 0 && !selectedStory) setSelectedStory(myStories[0].id);
     });
 
-    // Ambil Tautan/Token
     const tokensRef = collection(db, 'artifacts', appId, 'public', 'data', 'access_tokens');
     const unsubTokens = onSnapshot(tokensRef, (snapshot) => {
-      const allTokens = snapshot.docs.map(doc => doc.data());
-      // Filter: Hanya tampilkan token milik akun yang sedang login!
-      const myTokens = allTokens.filter(t => t.authorId === user.uid).sort((a,b) => b.createdAt - a.createdAt);
-      setTokens(myTokens);
+      const now = Date.now();
+      const myTokens = [];
+
+      snapshot.docs.forEach((document) => {
+        const data = document.data();
+        let isExpired = false;
+
+        // FITUR 3: Pengecekan Expiry Token dan Auto-Delete
+        if (data.status === 'expired') {
+          isExpired = true;
+        } else if (data.status === 'active' && data.startedAt) {
+          if (now >= data.startedAt + data.duration) {
+            isExpired = true;
+          }
+        }
+
+        if (isExpired) {
+          // Hapus token yang sudah expired dari database
+          deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'access_tokens', document.id)).catch(console.error);
+        } else if (data.authorId === user.uid) {
+          myTokens.push(data); // Masukkan ke list hanya jika belum expired
+        }
+      });
+
+      setTokens(myTokens.sort((a,b) => b.createdAt - a.createdAt));
     });
 
     return () => { unsubStories(); unsubTokens(); };
   }, [user]);
 
-  // 2. Fungsi Simpan Cerita
   const handleSaveStory = async () => {
     if (!title || !content) return alert("Judul dan isi cerita harus diisi!");
     setIsSaving(true);
@@ -315,20 +331,13 @@ function AdminDashboard({ user }) {
     const storyRef = doc(db, 'artifacts', appId, 'public', 'data', 'stories', storyId);
     
     await setDoc(storyRef, {
-      id: storyId,
-      title: title,
-      content: content,
-      authorId: user.uid, // Tanda pengenal pemilik cerita
-      authorEmail: user.email,
-      createdAt: Date.now()
+      id: storyId, title: title, content: content,
+      authorId: user.uid, authorEmail: user.email, createdAt: Date.now()
     });
 
-    setTitle('');
-    setContent('');
-    setIsSaving(false);
+    setTitle(''); setContent(''); setIsSaving(false);
   };
 
-  // 3. Fungsi Buat Tautan Klien
   const handleGenerateLink = async () => {
     if (!selectedStory) return alert("Pilih cerita terlebih dahulu!");
     if (!duration || parseInt(duration) < 1) return alert("Durasi minimal 1 menit!");
@@ -336,19 +345,12 @@ function AdminDashboard({ user }) {
     setIsGenerating(true);
     const tokenId = `token-${Math.random().toString(36).substr(2, 6).toUpperCase()}`;
     const tokenRef = doc(db, 'artifacts', appId, 'public', 'data', 'access_tokens', tokenId);
-    
     const targetStory = stories.find(s => s.id === selectedStory);
 
     await setDoc(tokenRef, {
-      id: tokenId,
-      storyId: selectedStory,
-      storyTitle: targetStory.title,
-      authorId: user.uid, // Tanda pengenal pemilik token
-      duration: parseInt(duration) * 60 * 1000, // Konversi menit ke ms
-      status: 'pending',
-      createdAt: Date.now(),
-      startedAt: null,
-      deviceId: null
+      id: tokenId, storyId: selectedStory, storyTitle: targetStory.title,
+      authorId: user.uid, duration: parseInt(duration) * 60 * 1000, 
+      status: 'pending', createdAt: Date.now(), startedAt: null, deviceId: null
     });
 
     setIsGenerating(false);
@@ -362,21 +364,20 @@ function AdminDashboard({ user }) {
 
   return (
     <div className="space-y-6 sm:space-y-8 animate-fade-in">
-      
-      {/* Notifikasi Login */}
-      <div className="bg-gradient-to-br from-indigo-600 to-purple-700 text-white p-5 sm:p-6 rounded-3xl shadow-lg shadow-indigo-200 flex items-center justify-between">
-        <div>
-          <p className="text-sm text-indigo-100 font-medium mb-0.5">Login sebagai Penulis:</p>
+      {/* Banner Premium */}
+      <div className="bg-gradient-to-br from-emerald-800 to-black border border-emerald-900 text-white p-5 sm:p-6 rounded-3xl shadow-lg flex items-center justify-between relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500 opacity-10 blur-3xl rounded-full"></div>
+        <div className="relative z-10">
+          <p className="text-sm text-amber-400 font-bold mb-0.5 tracking-wider uppercase">Login sebagai Penulis:</p>
           <p className="font-bold text-lg">{user.email}</p>
         </div>
-        <div className="text-right">
-          <p className="text-sm text-indigo-100 font-medium mb-0.5">Total Karya</p>
+        <div className="text-right relative z-10">
+          <p className="text-sm text-amber-400 font-bold mb-0.5 tracking-wider uppercase">Total Karya</p>
           <p className="font-bold text-xl sm:text-2xl">{stories.length} <span className="text-base font-normal opacity-80">Cerita</span></p>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        
         {/* KOLOM KIRI: TULIS CERITA */}
         <div className="bg-white p-5 sm:p-8 rounded-3xl shadow-sm border border-slate-200">
           <h2 className="text-xl font-bold text-slate-800 mb-1">📝 Tulis Cerita Baru</h2>
@@ -384,24 +385,24 @@ function AdminDashboard({ user }) {
           
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1.5">Judul Cerita / Bab</label>
+              <label className="block text-sm font-bold text-slate-700 mb-1.5">Judul Cerita / Bab</label>
               <input 
                 type="text" value={title} onChange={(e) => setTitle(e.target.value)}
-                className="w-full px-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                className="w-full px-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none transition-all"
                 placeholder="Contoh: Sang Pengelana (Bab 1)"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1.5">Isi Cerita</label>
+              <label className="block text-sm font-bold text-slate-700 mb-1.5">Isi Cerita</label>
               <textarea 
                 rows="6" value={content} onChange={(e) => setContent(e.target.value)}
-                className="w-full px-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all resize-y min-h-[120px]"
+                className="w-full px-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none transition-all resize-y min-h-[120px]"
                 placeholder="Ketik rahasiamu di sini..."
               ></textarea>
             </div>
             <button 
               onClick={handleSaveStory} disabled={isSaving}
-              className="w-full bg-slate-900 hover:bg-slate-800 text-white px-6 py-3 rounded-xl font-medium transition-all disabled:opacity-50 shadow-md"
+              className="w-full bg-black hover:bg-slate-800 text-white px-6 py-3 rounded-xl font-bold transition-all disabled:opacity-50 shadow-md"
             >
               {isSaving ? 'Menyimpan...' : '💾 Simpan Cerita ke Cloud'}
             </button>
@@ -415,63 +416,61 @@ function AdminDashboard({ user }) {
           
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1.5">Pilih Karya Anda</label>
+              <label className="block text-sm font-bold text-slate-700 mb-1.5">Pilih Karya Anda</label>
               <select 
                 value={selectedStory} onChange={(e) => setSelectedStory(e.target.value)}
-                className="w-full px-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none cursor-pointer transition-all"
+                className="w-full px-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none cursor-pointer transition-all font-medium"
               >
                 {stories.length === 0 && <option value="">-- Belum ada cerita --</option>}
                 {stories.map(s => <option key={s.id} value={s.id}>{s.title}</option>)}
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1.5">Batas Waktu (Menit)</label>
+              <label className="block text-sm font-bold text-slate-700 mb-1.5">Batas Waktu (Menit)</label>
               <input 
                 type="number" min="1" value={duration} onChange={(e) => setDuration(e.target.value)}
-                className="w-full px-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                className="w-full px-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none transition-all"
               />
             </div>
             <button 
               onClick={handleGenerateLink} disabled={isGenerating || stories.length === 0}
-              className="w-full flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-3 rounded-xl font-medium transition-all disabled:opacity-50 shadow-md shadow-indigo-200"
+              className="w-full flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-3 rounded-xl font-bold transition-all disabled:opacity-50 shadow-md shadow-emerald-200"
             >
               <PlusCircle className="w-5 h-5" />
               {isGenerating ? 'Memproses...' : 'Buat Tautan Magic'}
             </button>
           </div>
         </div>
-
       </div>
 
       {/* TABEL TAUTAN AKTIF */}
       <div className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
-        <div className="px-5 sm:px-6 py-5 border-b border-slate-200 bg-slate-50/50">
-          <h3 className="font-bold text-slate-800">Daftar Tautan Klien & Riwayat</h3>
+        <div className="px-5 sm:px-6 py-5 border-b border-slate-200 bg-slate-50/50 flex justify-between items-center">
+          <h3 className="font-bold text-slate-800">Daftar Tautan Klien Aktif</h3>
+          <span className="text-xs bg-emerald-100 text-emerald-700 px-2 py-1 rounded-md font-bold">Auto-Clean Aktif</span>
         </div>
         <div className="divide-y divide-slate-100 max-h-96 overflow-y-auto">
           {tokens.length === 0 ? (
             <div className="p-10 text-center text-slate-500 flex flex-col items-center">
               <LinkIcon className="w-10 h-10 mb-3 text-slate-300" />
-              <p>Belum ada tautan yang digenerate.</p>
+              <p>Belum ada tautan yang aktif.</p>
             </div>
           ) : (
             tokens.map(t => (
               <div key={t.id} className="p-5 sm:px-6 flex flex-col sm:flex-row justify-between sm:items-center gap-4 hover:bg-slate-50 transition-colors">
                 <div>
-                  <h4 className="font-semibold text-slate-800">{t.storyTitle}</h4>
+                  <h4 className="font-bold text-slate-800">{t.storyTitle}</h4>
                   <div className="flex flex-wrap items-center gap-2 mt-2 text-sm">
                     <span className={`px-2.5 py-0.5 rounded-md text-xs font-bold uppercase tracking-wider
-                      ${t.status === 'pending' ? 'bg-amber-100 text-amber-700' : 
-                        t.status === 'active' ? 'bg-indigo-100 text-indigo-700' : 
-                        'bg-rose-100 text-rose-700'}`}
+                      ${t.status === 'pending' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'}`}
                     >
                       {t.status}
                     </span>
                     <span className="text-slate-600 font-mono bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200 text-xs">ID: {t.id}</span>
-                    <span className="text-slate-600 font-mono bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-100 text-xs flex items-center gap-1"><Clock className="w-3 h-3"/> {t.duration / 60000} Menit</span>
+                    <span className="text-slate-600 font-mono bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200 text-xs flex items-center gap-1"><Clock className="w-3 h-3"/> {t.duration / 60000} Menit</span>
                   </div>
                   {t.status === 'active' && (
-                    <p className="text-xs text-indigo-600 mt-2 font-medium flex items-center gap-1">Aktif sejak: {new Date(t.startedAt).toLocaleTimeString()}</p>
+                    <p className="text-xs text-emerald-600 mt-2 font-bold flex items-center gap-1">Sedang dibaca oleh klien (Mulai: {new Date(t.startedAt).toLocaleTimeString()})</p>
                   )}
                 </div>
                 
@@ -501,25 +500,21 @@ function ReaderSimulator({ user }) {
   const [timeLeft, setTimeLeft] = useState(null);
   const timerRef = useRef(null);
 
-  // Proteksi Keamanan: Blokir F12, Ctrl+Shift+I, dll
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (
-        e.keyCode === 123 || // F12
-        (e.ctrlKey && e.shiftKey && (e.keyCode === 73 || e.keyCode === 74 || e.keyCode === 67)) || // Ctrl+Shift+I/J/C
-        (e.ctrlKey && e.keyCode === 85) // Ctrl+U
+        e.keyCode === 123 || 
+        (e.ctrlKey && e.shiftKey && (e.keyCode === 73 || e.keyCode === 74 || e.keyCode === 67)) ||
+        (e.ctrlKey && e.keyCode === 85)
       ) {
         e.preventDefault();
-        alert("Peringatan Keamanan: Fitur Developer Tools dinonaktifkan demi melindungi hak cipta penulis.");
+        alert("Peringatan Keamanan: Fitur Developer Tools dinonaktifkan.");
       }
     };
-    
-    // Hanya pasang proteksi jika sedang berada di layar baca (Client)
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  // Kunci peramban klien secara lokal
   const getDeviceId = () => {
     let deviceId = localStorage.getItem('reader_device_v3');
     if (!deviceId) {
@@ -542,40 +537,32 @@ function ReaderSimulator({ user }) {
       const tokenSnap = await getDoc(tokenRef);
 
       if (!tokenSnap.exists()) {
-        return setErrorMsg("Akses Ditolak! Token tidak ditemukan di server.");
+        return setErrorMsg("Akses Ditolak! Token tidak ditemukan atau sudah hangus.");
       }
 
       let data = tokenSnap.data();
       const currentDevice = getDeviceId();
       const now = Date.now();
 
-      // LOGIKA 1: Buka Segel Token
       if (data.status === 'pending') {
         await updateDoc(tokenRef, {
-          status: 'active',
-          startedAt: now,
-          deviceId: currentDevice // Gembok ke Browser ini
+          status: 'active', startedAt: now, deviceId: currentDevice
         });
-        data.status = 'active';
-        data.startedAt = now;
-        data.deviceId = currentDevice;
+        data.status = 'active'; data.startedAt = now; data.deviceId = currentDevice;
       }
 
-      // LOGIKA 2: Cek Gembok Browser
       if (data.deviceId !== currentDevice) {
         return setErrorMsg("Akses Ditolak! Tautan ini sudah terkunci oleh perangkat lain.");
       }
 
-      // LOGIKA 3: Perhitungan Waktu Mundur Server
       if (data.status === 'active') {
         const timeElapsed = now - data.startedAt;
         const MAX_TIME = data.duration;
 
         if (timeElapsed >= MAX_TIME) {
           await updateDoc(tokenRef, { status: 'expired' });
-          return setErrorMsg("Waktu baca sudah habis. Konten telah ditarik oleh sistem.");
+          return setErrorMsg("Waktu baca sudah habis. Sesi ditutup otomatis.");
         } else {
-          // Izin Diberikan! Ambil Cerita dari Server
           const storyRef = doc(db, 'artifacts', appId, 'public', 'data', 'stories', data.storyId);
           const storySnap = await getDoc(storyRef);
           
@@ -587,7 +574,7 @@ function ReaderSimulator({ user }) {
           }
         }
       } else if (data.status === 'expired') {
-        return setErrorMsg("Waktu baca sudah habis. Konten telah ditarik oleh sistem.");
+        return setErrorMsg("Waktu baca sudah habis. Sesi ditutup otomatis.");
       }
     } catch (err) {
       console.error(err);
@@ -595,6 +582,7 @@ function ReaderSimulator({ user }) {
     }
   };
 
+  // FITUR 1: Auto Redirect/Kick jika waktu habis
   const startTimer = (remainingMs, tokenRef) => {
     if (timerRef.current) clearInterval(timerRef.current);
     setTimeLeft(remainingMs);
@@ -604,8 +592,12 @@ function ReaderSimulator({ user }) {
         if (prev <= 1000) {
           clearInterval(timerRef.current);
           updateDoc(tokenRef, { status: 'expired' });
-          setErrorMsg("WAKTU HABIS! Teks ditarik otomatis oleh sistem.");
-          setStoryData(null);
+          
+          // Tindakan menendang Client ke luar secara instan
+          setStoryData(null); 
+          setInputToken('');
+          setErrorMsg("WAKTU HABIS! Layar telah dikunci dan ditutup otomatis oleh sistem.");
+          
           return 0;
         }
         return prev - 1000;
@@ -629,8 +621,8 @@ function ReaderSimulator({ user }) {
       
       {!storyData && (
         <div className="bg-white p-8 sm:p-12 rounded-3xl shadow-sm border border-slate-200 text-center mt-6 sm:mt-10 mx-auto max-w-lg">
-          <div className="w-20 h-20 bg-indigo-50 rounded-2xl flex items-center justify-center mx-auto mb-6 rotate-3">
-            <LinkIcon className="w-10 h-10 text-indigo-600 -rotate-3" />
+          <div className="w-20 h-20 bg-emerald-50 rounded-2xl flex items-center justify-center mx-auto mb-6 rotate-3">
+            <LinkIcon className="w-10 h-10 text-emerald-600 -rotate-3" />
           </div>
           <h2 className="text-2xl sm:text-3xl font-bold text-slate-800 mb-3">Portal Klien</h2>
           <p className="text-slate-500 mb-8 text-sm sm:text-base leading-relaxed">Masukkan Token URL yang diberikan oleh Penulis Anda. Hitung mundur akan berjalan otomatis.</p>
@@ -639,17 +631,17 @@ function ReaderSimulator({ user }) {
             <input 
               type="text" value={inputToken} onChange={(e) => setInputToken(e.target.value.trim())}
               placeholder="Contoh: token-A1B2C3" 
-              className="flex-1 px-5 py-3.5 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none text-center sm:text-left font-mono tracking-wider transition-all"
+              className="flex-1 px-5 py-3.5 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none text-center sm:text-left font-mono tracking-wider transition-all font-bold text-slate-700"
             />
-            <button type="submit" className="bg-slate-900 hover:bg-slate-800 text-white px-8 py-3.5 rounded-xl font-bold transition-all shadow-md active:scale-95">
-              Buka Dokumen
+            <button type="submit" className="bg-black hover:bg-slate-800 text-white px-8 py-3.5 rounded-xl font-bold transition-all shadow-md active:scale-95">
+              Buka Akses
             </button>
           </form>
 
           {errorMsg && (
             <div className="mt-8 p-4 bg-rose-50 border border-rose-100 text-rose-700 rounded-xl flex items-start gap-3 text-left animate-fade-in">
               <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5" />
-              <p className="font-medium text-sm sm:text-base">{errorMsg}</p>
+              <p className="font-bold text-sm sm:text-base">{errorMsg}</p>
             </div>
           )}
         </div>
@@ -657,14 +649,13 @@ function ReaderSimulator({ user }) {
 
       {storyData && (
         <div className="space-y-4 animate-fade-in">
-          {/* Header & Timer Sticky */}
           <div className="bg-slate-900/95 backdrop-blur-md text-white p-4 sm:p-5 rounded-2xl sm:rounded-3xl shadow-xl flex flex-col sm:flex-row justify-between sm:items-center gap-3 sticky top-[72px] sm:top-[88px] z-40 border border-slate-700">
             <div className="overflow-hidden">
-              <p className="text-slate-400 text-xs sm:text-sm font-bold tracking-widest uppercase mb-1">Sedang Membaca</p>
+              <p className="text-amber-400 text-xs sm:text-sm font-bold tracking-widest uppercase mb-1">Sedang Membaca</p>
               <h3 className="font-bold text-base sm:text-lg truncate">{storyData.title}</h3>
             </div>
             <div className="flex sm:flex-col justify-between items-center sm:items-end bg-slate-800/50 sm:bg-transparent px-4 py-2 sm:p-0 rounded-xl sm:rounded-none">
-              <p className="text-slate-400 text-xs sm:text-sm flex items-center gap-1.5 font-medium mb-0 sm:mb-1">
+              <p className="text-slate-400 text-xs sm:text-sm flex items-center gap-1.5 font-bold mb-0 sm:mb-1">
                 <Clock className="w-4 h-4" /> Sisa Waktu
               </p>
               <p className={`text-2xl sm:text-3xl font-mono font-bold tracking-wider ${timeLeft < 60000 ? 'text-rose-400 animate-pulse' : 'text-emerald-400'}`}>
@@ -673,7 +664,6 @@ function ReaderSimulator({ user }) {
             </div>
           </div>
 
-          {/* Area Baca Proteksi Tingkat Tinggi */}
           <div 
             className="bg-white p-6 sm:p-10 md:p-16 rounded-2xl sm:rounded-3xl shadow-sm border border-slate-200 min-h-[60vh] relative overflow-hidden"
             onContextMenu={(e) => { e.preventDefault(); alert('Peringatan: Klik Kanan Dinonaktifkan.'); }}
@@ -682,7 +672,6 @@ function ReaderSimulator({ user }) {
             ondragstart={(e) => e.preventDefault()}
             style={{ userSelect: 'none', WebkitUserSelect: 'none', MozUserSelect: 'none' }}
           >
-            {/* Watermark Tipis di Background */}
             <div className="absolute inset-0 pointer-events-none opacity-[0.02] flex items-center justify-center overflow-hidden">
                <p className="text-[150px] font-black -rotate-45 whitespace-nowrap">RAHASIA</p>
             </div>
@@ -693,7 +682,7 @@ function ReaderSimulator({ user }) {
             
             <div className="mt-12 sm:mt-16 pt-8 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-center text-slate-400 gap-2 sm:gap-3 select-none relative z-10 text-center">
               <ShieldAlert className="w-5 h-5 sm:w-6 sm:h-6 shrink-0" />
-              <p className="text-xs sm:text-sm font-medium max-w-sm">Dokumen ini dilindungi enkripsi sistem Cloud. Dilarang menyalin atau mendistribusikan ulang.</p>
+              <p className="text-xs sm:text-sm font-bold max-w-sm">Dokumen ini dilindungi enkripsi sistem Cloud. Dilarang menyalin atau mendistribusikan ulang.</p>
             </div>
           </div>
         </div>
