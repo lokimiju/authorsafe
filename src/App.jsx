@@ -25,6 +25,11 @@ const firebaseConfig = {
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 
+// 3 BARIS INI KEMUNGKINAN BESAR HILANG DI KODINGANMU, TAMBAHKAN SEKARANG:
+const auth = getAuth(app);
+const db = getFirestore(app);
+const appId = 'writer-dashboard-v3';
+
 // ==========================================
 // KOMPONEN UTAMA: ROUTER & LAYOUT
 // ==========================================
