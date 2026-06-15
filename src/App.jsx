@@ -22,7 +22,6 @@ const firebaseConfig = {
   appId: "1:453655231430:web:d94246f4574e70f4ed90c7"
 };
 
-// Initialize Firebase
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
@@ -34,34 +33,31 @@ const appId = 'writer-dashboard-v3';
 export default function App() {
   const [user, setUser] = useState(null);
   const [view, setView] = useState('reader'); 
-  const [loading, setLoading] = useState(true);
-  const [isAuthReady, setIsAuthReady] = useState(false); // FITUR 2: Penahan loading agar tidak auto-logout
+  const [isAuthReady, setIsAuthReady] = useState(false);
 
   useEffect(() => {
-    const initAuth = async () => {
-      try {
-        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-          await signInWithCustomToken(auth, __initial_auth_token);
-        } else if (!auth.currentUser) {
+    // PERBAIKAN 1: Logika Otentikasi yang lebih pintar dan tidak menimpa sesi
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+      if (currentUser) {
+        // Jika memori login ditemukan (Gmail atau Anonim), gunakan itu
+        setUser(currentUser);
+        setIsAuthReady(true);
+      } else {
+        // JIKA DAN HANYA JIKA tidak ada memori login sama sekali, baru buat Anonim
+        try {
           await signInAnonymously(auth);
+          // Setelah berhasil, Firebase akan memanggil onAuthStateChanged lagi secara otomatis
+        } catch (err) {
+          console.error("Gagal membuat sesi klien:", err);
+          setIsAuthReady(true);
         }
-      } catch (err) {
-        console.error("Auth error:", err);
       }
-    };
-    initAuth();
-
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      setUser(currentUser);
-      setIsAuthReady(true); // Firebase selesai mengecek sesi
-      setLoading(false);
     });
 
     return () => unsubscribe();
   }, []);
 
-  // Tahan layar putih sebentar jika Firebase sedang memvalidasi memori login
-  if (!isAuthReady || loading) {
+  if (!isAuthReady) {
     return (
       <div className="flex h-screen items-center justify-center bg-slate-50">
         <div className="flex flex-col items-center gap-3">
@@ -74,13 +70,12 @@ export default function App() {
 
   const handleLogout = async () => {
     await signOut(auth);
-    await signInAnonymously(auth);
+    // Sign out menghapus user, onAuthStateChanged di atas akan mendeteksi kosong dan otomatis membuat anonim baru
     setView('reader');
   };
 
   return (
     <div className="min-h-screen bg-slate-50 font-sans text-slate-800 selection:bg-emerald-200 selection:text-emerald-900">
-      {/* Navbar */}
       <nav className="bg-white/80 backdrop-blur-md sticky top-0 z-50 shadow-sm border-b border-slate-200 px-4 sm:px-6 py-3 sm:py-4 flex flex-row justify-between items-center gap-2 sm:gap-4 w-full">
         <h1 className="text-xl sm:text-2xl font-bold text-emerald-700 flex items-center gap-1.5 shrink-0">
           <ShieldAlert className="w-6 h-6 sm:w-7 sm:h-7" />
@@ -300,7 +295,6 @@ function AdminDashboard({ user }) {
         const data = document.data();
         let isExpired = false;
 
-        // FITUR 3: Pengecekan Expiry Token dan Auto-Delete
         if (data.status === 'expired') {
           isExpired = true;
         } else if (data.status === 'active' && data.startedAt) {
@@ -310,10 +304,9 @@ function AdminDashboard({ user }) {
         }
 
         if (isExpired) {
-          // Hapus token yang sudah expired dari database
           deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'access_tokens', document.id)).catch(console.error);
         } else if (data.authorId === user.uid) {
-          myTokens.push(data); // Masukkan ke list hanya jika belum expired
+          myTokens.push(data); 
         }
       });
 
@@ -364,7 +357,6 @@ function AdminDashboard({ user }) {
 
   return (
     <div className="space-y-6 sm:space-y-8 animate-fade-in">
-      {/* Banner Premium */}
       <div className="bg-gradient-to-br from-emerald-800 to-black border border-emerald-900 text-white p-5 sm:p-6 rounded-3xl shadow-lg flex items-center justify-between relative overflow-hidden">
         <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500 opacity-10 blur-3xl rounded-full"></div>
         <div className="relative z-10">
@@ -378,7 +370,6 @@ function AdminDashboard({ user }) {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* KOLOM KIRI: TULIS CERITA */}
         <div className="bg-white p-5 sm:p-8 rounded-3xl shadow-sm border border-slate-200">
           <h2 className="text-xl font-bold text-slate-800 mb-1">📝 Tulis Cerita Baru</h2>
           <p className="text-slate-500 text-sm mb-6">Cerita yang disimpan terkunci aman di Cloud.</p>
@@ -409,7 +400,6 @@ function AdminDashboard({ user }) {
           </div>
         </div>
 
-        {/* KOLOM KANAN: MANAJEMEN TAUTAN */}
         <div className="bg-white p-5 sm:p-8 rounded-3xl shadow-sm border border-slate-200">
           <h2 className="text-xl font-bold text-slate-800 mb-1">🔗 Buat Tautan Klien</h2>
           <p className="text-slate-500 text-sm mb-6">Pilih cerita dan atur durasi waktu bacanya.</p>
@@ -443,7 +433,6 @@ function AdminDashboard({ user }) {
         </div>
       </div>
 
-      {/* TABEL TAUTAN AKTIF */}
       <div className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
         <div className="px-5 sm:px-6 py-5 border-b border-slate-200 bg-slate-50/50 flex justify-between items-center">
           <h3 className="font-bold text-slate-800">Daftar Tautan Klien Aktif</h3>
@@ -582,7 +571,6 @@ function ReaderSimulator({ user }) {
     }
   };
 
-  // FITUR 1: Auto Redirect/Kick jika waktu habis
   const startTimer = (remainingMs, tokenRef) => {
     if (timerRef.current) clearInterval(timerRef.current);
     setTimeLeft(remainingMs);
@@ -593,7 +581,6 @@ function ReaderSimulator({ user }) {
           clearInterval(timerRef.current);
           updateDoc(tokenRef, { status: 'expired' });
           
-          // Tindakan menendang Client ke luar secara instan
           setStoryData(null); 
           setInputToken('');
           setErrorMsg("WAKTU HABIS! Layar telah dikunci dan ditutup otomatis oleh sistem.");
@@ -648,24 +635,18 @@ function ReaderSimulator({ user }) {
       )}
 
       {storyData && (
-        <div className="space-y-4 animate-fade-in">
-          <div className="bg-slate-900/95 backdrop-blur-md text-white p-4 sm:p-5 rounded-2xl sm:rounded-3xl shadow-xl flex flex-col sm:flex-row justify-between sm:items-center gap-3 sticky top-[72px] sm:top-[88px] z-40 border border-slate-700">
-            <div className="overflow-hidden">
-              <p className="text-amber-400 text-xs sm:text-sm font-bold tracking-widest uppercase mb-1">Sedang Membaca</p>
-              <h3 className="font-bold text-base sm:text-lg truncate">{storyData.title}</h3>
-            </div>
-            <div className="flex sm:flex-col justify-between items-center sm:items-end bg-slate-800/50 sm:bg-transparent px-4 py-2 sm:p-0 rounded-xl sm:rounded-none">
-              <p className="text-slate-400 text-xs sm:text-sm flex items-center gap-1.5 font-bold mb-0 sm:mb-1">
-                <Clock className="w-4 h-4" /> Sisa Waktu
-              </p>
-              <p className={`text-2xl sm:text-3xl font-mono font-bold tracking-wider ${timeLeft < 60000 ? 'text-rose-400 animate-pulse' : 'text-emerald-400'}`}>
-                {formatTime(timeLeft)}
-              </p>
-            </div>
+        <div className="space-y-4 animate-fade-in relative">
+          
+          {/* PERBAIKAN 2A: Judul dibuat menempel di background, tidak ikut floating */}
+          <div className="mb-6 sm:mb-8 text-center sm:text-left px-2 mt-4">
+            <p className="text-amber-500 text-xs sm:text-sm font-bold tracking-widest uppercase mb-2 flex items-center justify-center sm:justify-start gap-2">
+              <BookOpen className="w-4 h-4" /> Sedang Membaca
+            </p>
+            <h3 className="font-bold text-2xl sm:text-3xl text-slate-800 leading-tight">{storyData.title}</h3>
           </div>
 
           <div 
-            className="bg-white p-6 sm:p-10 md:p-16 rounded-2xl sm:rounded-3xl shadow-sm border border-slate-200 min-h-[60vh] relative overflow-hidden"
+            className="bg-white p-6 sm:p-10 md:p-16 pb-24 sm:pb-32 rounded-2xl sm:rounded-3xl shadow-sm border border-slate-200 min-h-[60vh] relative overflow-hidden"
             onContextMenu={(e) => { e.preventDefault(); alert('Peringatan: Klik Kanan Dinonaktifkan.'); }}
             onCopy={(e) => { e.preventDefault(); alert('Peringatan: Tindakan Copy Terdeteksi dan Diblokir.'); }}
             onSelectStart={(e) => e.preventDefault()}
@@ -683,6 +664,19 @@ function ReaderSimulator({ user }) {
             <div className="mt-12 sm:mt-16 pt-8 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-center text-slate-400 gap-2 sm:gap-3 select-none relative z-10 text-center">
               <ShieldAlert className="w-5 h-5 sm:w-6 sm:h-6 shrink-0" />
               <p className="text-xs sm:text-sm font-bold max-w-sm">Dokumen ini dilindungi enkripsi sistem Cloud. Dilarang menyalin atau mendistribusikan ulang.</p>
+            </div>
+          </div>
+
+          {/* PERBAIKAN 2B: Widget Timer Floating Modern */}
+          <div className="fixed bottom-6 left-1/2 -translate-x-1/2 sm:left-auto sm:translate-x-0 sm:right-8 sm:bottom-8 z-50 bg-black/90 backdrop-blur-md border border-emerald-900/50 pl-3 pr-6 py-2.5 rounded-full shadow-2xl shadow-emerald-900/20 flex items-center gap-4 transition-all">
+            <div className={`w-10 h-10 rounded-full flex items-center justify-center ${timeLeft < 60000 ? 'bg-rose-500/20 text-rose-400 animate-pulse' : 'bg-emerald-500/20 text-emerald-400'}`}>
+              <Clock className="w-5 h-5" />
+            </div>
+            <div>
+              <p className="text-slate-400 text-[10px] font-bold tracking-widest uppercase mb-0.5">Sisa Waktu</p>
+              <p className={`text-lg sm:text-xl font-mono font-bold leading-none ${timeLeft < 60000 ? 'text-rose-400 animate-pulse' : 'text-emerald-400'}`}>
+                {formatTime(timeLeft)}
+              </p>
             </div>
           </div>
         </div>
