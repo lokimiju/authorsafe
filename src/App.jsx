@@ -9,8 +9,12 @@ import {
   getFirestore, collection, doc, setDoc, getDoc, updateDoc, onSnapshot, deleteDoc, arrayUnion
 } from 'firebase/firestore';
 import { 
+  getStorage, ref, uploadBytes, getDownloadURL 
+} from 'firebase/storage';
+import { 
   Clock, ShieldAlert, Link as LinkIcon, PlusCircle, Copy, AlertTriangle, 
-  User, LogOut, BookOpen, Lock, UploadCloud, Star, Edit, Trash2, Search, Settings
+  User, LogOut, BookOpen, Lock, UploadCloud, Star, Edit, Trash2, Search, Settings, 
+  Check, FileText, Globe, Instagram, Twitter, ExternalLink, Camera
 } from 'lucide-react';
 
 const firebaseConfig = {
@@ -25,6 +29,7 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
+const storage = getStorage(app); // INISIALISASI FIREBASE STORAGE
 const appId = 'writer-dashboard-v3';
 
 // Konfigurasi Tema Author
@@ -64,8 +69,8 @@ export default function App() {
     return (
       <div className="flex h-screen items-center justify-center bg-slate-50">
         <div className="flex flex-col items-center gap-3">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
-          <p className="text-indigo-700 animate-pulse font-medium text-sm">Menghubungkan ke Server...</p>
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-slate-900"></div>
+          <p className="text-slate-700 animate-pulse font-medium text-sm">Menghubungkan ke Server...</p>
         </div>
       </div>
     );
@@ -82,7 +87,7 @@ export default function App() {
         <h1 className="text-xl sm:text-2xl font-bold text-slate-800 flex items-center gap-1.5 shrink-0">
           <ShieldAlert className="w-6 h-6 sm:w-7 sm:h-7" />
           <span className="hidden xs:inline">WriterSecure</span>
-          <span className="text-[10px] sm:text-xs font-bold text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full ml-1 whitespace-nowrap">Cloud V4</span>
+          <span className="text-[10px] sm:text-xs font-bold text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full ml-1 whitespace-nowrap">Cloud V4.1</span>
         </h1>
         
         <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
@@ -226,9 +231,16 @@ function AuthScreen() {
 // VIEW: DASHBOARD PENULIS (ADMIN)
 // ==========================================
 function AdminDashboard({ user }) {
-  const [activeTab, setActiveTab] = useState('write'); // 'write', 'bank', 'profile'
+  const [activeTab, setActiveTab] = useState('write'); 
   
-  const [authorProfile, setAuthorProfile] = useState({ displayName: user.email.split('@')[0], photoURL: '', instagram: '', theme: 'emerald' });
+  const [authorProfile, setAuthorProfile] = useState({ 
+    displayName: user.email.split('@')[0], 
+    photoURL: '', 
+    theme: 'emerald',
+    social: { instagram: '', twitter: '', tiktok: '', website: '' }
+  });
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
+
   const [stories, setStories] = useState([]);
   const [tokens, setTokens] = useState([]);
   
@@ -237,6 +249,8 @@ function AdminDashboard({ user }) {
   const [title, setTitle] = useState('');
   const [genre, setGenre] = useState('');
   const [content, setContent] = useState('');
+  const [pdfFile, setPdfFile] = useState(null); // File PDF yang di-drop
+  const [savedPdfUrl, setSavedPdfUrl] = useState(''); // URL PDF yang sudah di database
   const [isSaving, setIsSaving] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
 
@@ -254,8 +268,13 @@ function AdminDashboard({ user }) {
     // Fetch Profile
     const profileRef = doc(db, 'artifacts', appId, 'public', 'data', 'authors', user.uid);
     const unsubProfile = onSnapshot(profileRef, (snap) => {
-      if (snap.exists()) setAuthorProfile(snap.data());
-      else setDoc(profileRef, authorProfile); // Init profile if not exist
+      if (snap.exists()) {
+        const data = snap.data();
+        if (!data.social) data.social = { instagram: '', twitter: '', tiktok: '', website: '' }; // Fallback data lama
+        setAuthorProfile(data);
+      } else {
+        setDoc(profileRef, authorProfile); 
+      }
     });
 
     // Fetch Stories
@@ -286,50 +305,93 @@ function AdminDashboard({ user }) {
   const currentTheme = THEMES[authorProfile.theme] || THEMES.emerald;
   const filteredStoriesForLink = stories.filter(s => s.title.toLowerCase().includes(searchStory.toLowerCase()));
 
-  // Fitur Drag & Drop Text File
+  // Fitur Upload Foto Profil
+  const handlePhotoUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setIsUploadingPhoto(true);
+    try {
+      const storageRef = ref(storage, `avatars/${user.uid}_${Date.now()}_${file.name}`);
+      await uploadBytes(storageRef, file);
+      const url = await getDownloadURL(storageRef);
+      setAuthorProfile(prev => ({ ...prev, photoURL: url }));
+      // Otomatis simpan ke database setelah upload
+      await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'authors', user.uid), { photoURL: url });
+    } catch (err) {
+      alert("Gagal mengunggah foto.");
+      console.error(err);
+    }
+    setIsUploadingPhoto(false);
+  };
+
+  // Fitur Drag & Drop TXT & PDF
   const handleDrop = (e) => {
     e.preventDefault();
     setIsDragging(false);
     const file = e.dataTransfer.files[0];
-    if (file && (file.type === "text/plain" || file.name.endsWith('.txt'))) {
+    if (!file) return;
+
+    if (file.type === "text/plain" || file.name.endsWith('.txt')) {
       const reader = new FileReader();
-      reader.onload = (e) => setContent(e.target.result);
+      reader.onload = (e) => { setContent(e.target.result); setPdfFile(null); setSavedPdfUrl(''); };
       reader.readAsText(file);
+    } else if (file.type === "application/pdf" || file.name.endsWith('.pdf')) {
+      setPdfFile(file);
+      setContent(''); // Kosongkan teks jika pilih PDF
     } else {
-      alert("Format tidak didukung. Mohon masukkan file teks (.txt)");
+      alert("Format tidak didukung. Mohon masukkan file teks (.txt) atau dokumen (.pdf)");
     }
   };
 
   const handleSaveStory = async () => {
-    if (!title || !content) return alert("Judul dan isi cerita harus diisi!");
+    if (!title || (!content && !pdfFile && !savedPdfUrl)) return alert("Judul dan isi cerita (atau file PDF) harus diisi!");
     setIsSaving(true);
     
+    let finalPdfUrl = savedPdfUrl;
+
+    // Jika ada file PDF baru yang di-drop, unggah ke Storage
+    if (pdfFile) {
+      try {
+        const storageRef = ref(storage, `stories/${user.uid}_${Date.now()}_${pdfFile.name}`);
+        await uploadBytes(storageRef, pdfFile);
+        finalPdfUrl = await getDownloadURL(storageRef);
+      } catch (err) {
+        alert("Gagal mengunggah file PDF.");
+        setIsSaving(false);
+        return;
+      }
+    }
+
     const storyId = editStoryId || `story-${Date.now()}`;
     const storyRef = doc(db, 'artifacts', appId, 'public', 'data', 'stories', storyId);
     
     const storyPayload = {
       id: storyId, title, content, genre,
+      pdfUrl: finalPdfUrl, // Simpan URL PDF di database cerita
       authorId: user.uid, authorEmail: user.email, 
       updatedAt: Date.now()
     };
 
     if (!editStoryId) {
       storyPayload.createdAt = Date.now();
-      storyPayload.reviews = []; // Inisiasi array review kosong
+      storyPayload.reviews = []; 
     }
     
     if (editStoryId) await updateDoc(storyRef, storyPayload);
     else await setDoc(storyRef, storyPayload);
 
-    setTitle(''); setContent(''); setGenre(''); setEditStoryId(null); setIsSaving(false);
-    setActiveTab('bank'); // Redirect ke Bank Cerita
+    setTitle(''); setContent(''); setGenre(''); setPdfFile(null); setSavedPdfUrl(''); 
+    setEditStoryId(null); setIsSaving(false);
+    setActiveTab('bank'); 
   };
 
   const editStory = (story) => {
     setEditStoryId(story.id);
     setTitle(story.title);
-    setContent(story.content);
+    setContent(story.content || '');
     setGenre(story.genre || '');
+    setSavedPdfUrl(story.pdfUrl || '');
+    setPdfFile(null);
     setActiveTab('write');
   };
 
@@ -395,7 +457,7 @@ function AdminDashboard({ user }) {
                 <p className="text-slate-500 text-sm">Cerita otomatis terenkripsi di Cloud.</p>
               </div>
               {editStoryId && (
-                <button onClick={() => {setEditStoryId(null); setTitle(''); setContent(''); setGenre('');}} className="text-sm font-bold text-rose-500 hover:bg-rose-50 px-3 py-1.5 rounded-lg">Batal Edit</button>
+                <button onClick={() => {setEditStoryId(null); setTitle(''); setContent(''); setGenre(''); setPdfFile(null); setSavedPdfUrl('');}} className="text-sm font-bold text-rose-500 hover:bg-rose-50 px-3 py-1.5 rounded-lg">Batal Edit</button>
               )}
             </div>
             
@@ -411,23 +473,40 @@ function AdminDashboard({ user }) {
                 </div>
               </div>
 
-              <div 
-                className={`relative border-2 ${isDragging ? `${currentTheme.border} border-dashed ${currentTheme.light}` : 'border-slate-300 border-solid'} rounded-xl overflow-hidden transition-all`}
-                onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
-                onDragLeave={() => setIsDragging(false)}
-                onDrop={handleDrop}
-              >
-                <textarea rows="10" value={content} onChange={(e) => setContent(e.target.value)}
-                  className={`w-full px-4 py-4 bg-slate-50 ${currentTheme.ring} outline-none transition-all resize-y min-h-[200px]`}
-                  placeholder="Ketik rahasiamu di sini, atau Drag & Drop file .txt ke dalam kotak ini..."
-                ></textarea>
-                {!content && (
-                  <div className="absolute inset-0 pointer-events-none flex flex-col items-center justify-center text-slate-400 opacity-60">
-                    <UploadCloud className="w-10 h-10 mb-2" />
-                    <p className="text-sm font-bold">Drag & Drop file (.txt)</p>
+              {/* Area Konten atau Tampilan PDF */}
+              {pdfFile || savedPdfUrl ? (
+                <div className={`p-6 border-2 border-slate-200 rounded-xl bg-slate-50 flex items-center justify-between`}>
+                  <div className="flex items-center gap-4">
+                    <div className="p-3 bg-red-100 text-red-600 rounded-lg"><FileText className="w-8 h-8" /></div>
+                    <div>
+                      <p className="font-bold text-slate-800">File PDF Terlampir</p>
+                      <p className="text-sm text-slate-500">{pdfFile ? pdfFile.name : 'Dokumen PDF tersimpan di Cloud'}</p>
+                    </div>
                   </div>
-                )}
-              </div>
+                  <button onClick={() => { setPdfFile(null); setSavedPdfUrl(''); }} className="p-2 text-rose-500 hover:bg-rose-100 rounded-lg transition-colors" title="Hapus Dokumen PDF">
+                    <Trash2 className="w-5 h-5" />
+                  </button>
+                </div>
+              ) : (
+                <div 
+                  className={`relative border-2 ${isDragging ? `${currentTheme.border} border-dashed ${currentTheme.light}` : 'border-slate-300 border-solid'} rounded-xl overflow-hidden transition-all`}
+                  onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+                  onDragLeave={() => setIsDragging(false)}
+                  onDrop={handleDrop}
+                >
+                  <textarea rows="10" value={content} onChange={(e) => setContent(e.target.value)}
+                    className={`w-full px-4 py-4 bg-slate-50 ${currentTheme.ring} outline-none transition-all resize-y min-h-[200px]`}
+                    placeholder="Ketik rahasiamu di sini, atau Drag & Drop file (.txt / .pdf) ke dalam kotak ini..."
+                  ></textarea>
+                  {!content && (
+                    <div className="absolute inset-0 pointer-events-none flex flex-col items-center justify-center text-slate-400 opacity-60">
+                      <UploadCloud className="w-10 h-10 mb-2" />
+                      <p className="text-sm font-bold">Drag & Drop file (.txt / .pdf)</p>
+                    </div>
+                  )}
+                </div>
+              )}
+
               <button onClick={handleSaveStory} disabled={isSaving} className={`w-full ${currentTheme.bg} ${currentTheme.hover} text-white px-6 py-3 rounded-xl font-bold transition-all disabled:opacity-50 shadow-md`}>
                 {isSaving ? 'Menyimpan...' : (editStoryId ? '💾 Update Cerita' : '💾 Simpan Cerita ke Cloud')}
               </button>
@@ -469,6 +548,7 @@ function AdminDashboard({ user }) {
                       <p className="text-xs font-bold text-slate-800 truncate">{t.storyTitle}</p>
                       <p className={`text-[10px] font-bold uppercase mt-0.5 ${t.status === 'pending' ? 'text-amber-600' : 'text-emerald-600'}`}>{t.status}</p>
                     </div>
+                    {/* BAGIAN COPY FIX */}
                     <button onClick={() => {navigator.clipboard.writeText(t.id); setCopied(t.id); setTimeout(()=>setCopied(''),2000)}} className="p-1.5 bg-white border border-slate-200 rounded-lg hover:bg-slate-100 text-slate-600 shrink-0">
                       {copied === t.id ? <Check className="w-4 h-4 text-emerald-500"/> : <Copy className="w-4 h-4" />}
                     </button>
@@ -496,7 +576,10 @@ function AdminDashboard({ user }) {
                   <div key={s.id} className="p-6 hover:bg-slate-50 transition-colors">
                     <div className="flex flex-col sm:flex-row justify-between sm:items-start gap-4">
                       <div>
-                        <h4 className="font-bold text-slate-800 text-lg mb-1">{s.title}</h4>
+                        <h4 className="font-bold text-slate-800 text-lg mb-1 flex items-center gap-2">
+                          {s.pdfUrl && <FileText className="w-4 h-4 text-red-500 shrink-0" title="Dokumen PDF" />} 
+                          {s.title}
+                        </h4>
                         <div className="flex items-center gap-3 text-sm mb-3">
                           {s.genre && <span className="bg-slate-100 text-slate-600 px-2 py-0.5 rounded-md font-medium text-xs">{s.genre}</span>}
                           <span className="flex items-center gap-1 text-amber-500 font-bold"><Star className="w-4 h-4 fill-amber-500"/> {avgRating} ({reviewCount} Ulasan)</span>
@@ -508,7 +591,6 @@ function AdminDashboard({ user }) {
                         <button onClick={() => deleteStory(s.id)} className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-lg text-sm font-bold transition-all"><Trash2 className="w-4 h-4"/> Hapus</button>
                       </div>
                     </div>
-                    {/* Tampilkan Review Singkat */}
                     {reviewCount > 0 && (
                       <div className="mt-4 bg-slate-100/50 p-4 rounded-xl border border-slate-200">
                         <p className="text-xs font-bold text-slate-500 mb-2 uppercase tracking-wider">Ulasan Klien Terbaru:</p>
@@ -537,17 +619,48 @@ function AdminDashboard({ user }) {
             <h2 className="text-2xl font-bold text-slate-800">Pengaturan Profil</h2>
           </div>
           <form onSubmit={handleUpdateProfile} className="space-y-6">
+            
+            {/* Foto Profil Upload */}
+            <div className="flex items-center gap-5 bg-slate-50 p-4 rounded-2xl border border-slate-200">
+              <div className="w-20 h-20 rounded-full overflow-hidden bg-slate-200 border-2 border-white shadow-sm shrink-0">
+                {authorProfile.photoURL ? <img src={authorProfile.photoURL} className="w-full h-full object-cover" /> : <User className="w-full h-full text-slate-400 p-4"/>}
+              </div>
+              <div>
+                <p className="text-sm font-bold text-slate-800 mb-2">Foto Profil Penulis</p>
+                <label className={`cursor-pointer inline-flex items-center gap-2 px-4 py-2 ${currentTheme.bg} ${currentTheme.hover} text-white rounded-xl text-sm font-bold transition-all shadow-md`}>
+                  <Camera className="w-4 h-4" />
+                  {isUploadingPhoto ? 'Mengunggah...' : 'Upload Foto Baru'}
+                  <input type="file" accept="image/*" className="hidden" onChange={handlePhotoUpload} disabled={isUploadingPhoto} />
+                </label>
+              </div>
+            </div>
+
             <div>
               <label className="block text-sm font-bold text-slate-700 mb-1.5">Nama Pena / Profil</label>
               <input type="text" value={authorProfile.displayName} onChange={e => setAuthorProfile({...authorProfile, displayName: e.target.value})} className={`w-full px-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl ${currentTheme.ring} outline-none`} />
             </div>
-            <div>
-              <label className="block text-sm font-bold text-slate-700 mb-1.5">URL Foto Profil</label>
-              <input type="text" value={authorProfile.photoURL} onChange={e => setAuthorProfile({...authorProfile, photoURL: e.target.value})} placeholder="https://link-gambar-kamu.com/foto.jpg" className={`w-full px-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl ${currentTheme.ring} outline-none text-sm`} />
-            </div>
-            <div>
-              <label className="block text-sm font-bold text-slate-700 mb-1.5">Instagram / Sosial Media</label>
-              <input type="text" value={authorProfile.instagram} onChange={e => setAuthorProfile({...authorProfile, instagram: e.target.value})} placeholder="@username" className={`w-full px-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl ${currentTheme.ring} outline-none`} />
+
+            {/* Social Media Links */}
+            <div className="pt-4 border-t border-slate-100">
+               <label className="block text-sm font-bold text-slate-700 mb-3">Tautan Sosial Media & Kontak</label>
+               <div className="space-y-3">
+                  <div className="flex items-center gap-3">
+                     <Instagram className="w-5 h-5 text-pink-600 shrink-0" />
+                     <input type="url" placeholder="https://instagram.com/username" value={authorProfile.social?.instagram} onChange={e => setAuthorProfile({...authorProfile, social: {...authorProfile.social, instagram: e.target.value}})} className="flex-1 px-4 py-2 bg-slate-50 border border-slate-300 rounded-xl outline-none text-sm" />
+                  </div>
+                  <div className="flex items-center gap-3">
+                     <Twitter className="w-5 h-5 text-sky-500 shrink-0" />
+                     <input type="url" placeholder="https://x.com/username" value={authorProfile.social?.twitter} onChange={e => setAuthorProfile({...authorProfile, social: {...authorProfile.social, twitter: e.target.value}})} className="flex-1 px-4 py-2 bg-slate-50 border border-slate-300 rounded-xl outline-none text-sm" />
+                  </div>
+                  <div className="flex items-center gap-3">
+                     <svg className="w-5 h-5 text-slate-800 shrink-0" viewBox="0 0 24 24" fill="currentColor"><path d="M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.05-2.89-.35-4.2-.97-.57-.26-1.1-.59-1.62-.93v7.12c-.01 2.45-1.04 4.88-2.85 6.54-2.52 2.3-6.43 2.91-9.52 1.48-3.32-1.52-5.45-5.18-4.9-8.81.48-3.15 3.06-5.83 6.17-6.52 1.05-.24 2.15-.3 3.22-.16v4.06c-.84-.13-1.74-.01-2.48.43-.86.51-1.43 1.39-1.63 2.36-.29 1.45.62 3.03 2.01 3.52 1.25.44 2.7.2 3.65-.68.84-.77 1.25-1.93 1.27-3.07V.02h.98z"/></svg>
+                     <input type="url" placeholder="https://tiktok.com/@username" value={authorProfile.social?.tiktok} onChange={e => setAuthorProfile({...authorProfile, social: {...authorProfile.social, tiktok: e.target.value}})} className="flex-1 px-4 py-2 bg-slate-50 border border-slate-300 rounded-xl outline-none text-sm" />
+                  </div>
+                  <div className="flex items-center gap-3">
+                     <Globe className="w-5 h-5 text-indigo-500 shrink-0" />
+                     <input type="url" placeholder="https://website-pribadi.com" value={authorProfile.social?.website} onChange={e => setAuthorProfile({...authorProfile, social: {...authorProfile.social, website: e.target.value}})} className="flex-1 px-4 py-2 bg-slate-50 border border-slate-300 rounded-xl outline-none text-sm" />
+                  </div>
+               </div>
             </div>
             
             <div className="pt-4 border-t border-slate-100">
@@ -590,7 +703,6 @@ function ReaderSimulator({ user }) {
   const [timeLeft, setTimeLeft] = useState(null);
   const timerRef = useRef(null);
 
-  // State Review
   const [reviewName, setReviewName] = useState('');
   const [reviewRating, setReviewRating] = useState(5);
   const [reviewNote, setReviewNote] = useState('');
@@ -651,7 +763,6 @@ function ReaderSimulator({ user }) {
           if (storySnap.exists()) {
             setStoryData(storySnap.data());
             
-            // Ambil Data Profil Author
             const authorRef = doc(db, 'artifacts', appId, 'public', 'data', 'authors', data.authorId);
             const authorSnap = await getDoc(authorRef);
             if(authorSnap.exists()) setAuthorData(authorSnap.data());
@@ -697,9 +808,7 @@ function ReaderSimulator({ user }) {
         reviews: arrayUnion({ readerName: reviewName, rating: reviewRating, note: reviewNote, date: Date.now() })
       });
       setHasReviewed(true);
-    } catch(err) {
-      console.error(err); alert("Gagal mengirim ulasan.");
-    }
+    } catch(err) { console.error(err); alert("Gagal mengirim ulasan."); }
     setIsSubmittingReview(false);
   };
 
@@ -725,7 +834,6 @@ function ReaderSimulator({ user }) {
 
       {storyData && (
         <div className="space-y-4 animate-fade-in relative">
-          {/* Header Area Klien */}
           <div className="flex flex-col-reverse sm:flex-row sm:items-end justify-between gap-4 mb-6 px-2 mt-4">
             <div>
               <p className="text-amber-600 text-xs sm:text-sm font-bold tracking-widest uppercase mb-1.5 flex items-center gap-2">
@@ -735,16 +843,28 @@ function ReaderSimulator({ user }) {
               {storyData.genre && <span className="inline-block mt-3 bg-slate-200 text-slate-600 px-3 py-1 rounded-md font-bold text-xs">{storyData.genre}</span>}
             </div>
             
-            {/* Profil Author Top Right */}
+            {/* Profil Author Top Right + Social Media */}
             {authorData && (
-              <div className="flex items-center gap-3 bg-white p-3 rounded-2xl border border-slate-200 shadow-sm shrink-0 self-start sm:self-auto">
-                <div className="w-10 h-10 rounded-full overflow-hidden bg-slate-100">
-                  {authorData.photoURL ? <img src={authorData.photoURL} className="w-full h-full object-cover"/> : <User className="w-full h-full text-slate-300 p-2"/>}
+              <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm shrink-0 self-start sm:self-auto max-w-xs">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="w-12 h-12 rounded-full overflow-hidden bg-slate-100 border border-slate-200">
+                    {authorData.photoURL ? <img src={authorData.photoURL} className="w-full h-full object-cover"/> : <User className="w-full h-full text-slate-300 p-2"/>}
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Ditulis Oleh</p>
+                    <p className="font-bold text-base text-slate-800">{authorData.displayName}</p>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Ditulis Oleh</p>
-                  <p className="font-bold text-sm text-slate-800">{authorData.displayName}</p>
-                </div>
+                {/* Ikon Sosial Media Interaktif */}
+                {authorData.social && (
+                  <div className="flex items-center gap-2 pt-3 border-t border-slate-100">
+                     {authorData.social.instagram && <a href={authorData.social.instagram} target="_blank" rel="noopener noreferrer" className="p-1.5 bg-pink-50 text-pink-600 hover:bg-pink-100 rounded-lg transition-colors"><Instagram className="w-4 h-4" /></a>}
+                     {authorData.social.twitter && <a href={authorData.social.twitter} target="_blank" rel="noopener noreferrer" className="p-1.5 bg-sky-50 text-sky-500 hover:bg-sky-100 rounded-lg transition-colors"><Twitter className="w-4 h-4" /></a>}
+                     {authorData.social.tiktok && <a href={authorData.social.tiktok} target="_blank" rel="noopener noreferrer" className="p-1.5 bg-slate-100 text-slate-800 hover:bg-slate-200 rounded-lg transition-colors"><svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.05-2.89-.35-4.2-.97-.57-.26-1.1-.59-1.62-.93v7.12c-.01 2.45-1.04 4.88-2.85 6.54-2.52 2.3-6.43 2.91-9.52 1.48-3.32-1.52-5.45-5.18-4.9-8.81.48-3.15 3.06-5.83 6.17-6.52 1.05-.24 2.15-.3 3.22-.16v4.06c-.84-.13-1.74-.01-2.48.43-.86.51-1.43 1.39-1.63 2.36-.29 1.45.62 3.03 2.01 3.52 1.25.44 2.7.2 3.65-.68.84-.77 1.25-1.93 1.27-3.07V.02h.98z"/></svg></a>}
+                     {authorData.social.website && <a href={authorData.social.website} target="_blank" rel="noopener noreferrer" className="p-1.5 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 rounded-lg transition-colors"><Globe className="w-4 h-4" /></a>}
+                     {(!authorData.social.instagram && !authorData.social.twitter && !authorData.social.tiktok && !authorData.social.website) && <p className="text-xs text-slate-400 italic">Belum ada tautan sosial</p>}
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -754,21 +874,28 @@ function ReaderSimulator({ user }) {
             onCopy={(e) => { e.preventDefault(); alert('Tindakan Copy Diblokir.'); }}
             style={{ userSelect: 'none', WebkitUserSelect: 'none', MozUserSelect: 'none' }}
           >
-            <div className="absolute inset-0 pointer-events-none opacity-[0.02] flex items-center justify-center overflow-hidden"><p className="text-[150px] font-black -rotate-45 whitespace-nowrap">RAHASIA</p></div>
-            <div className="prose prose-base sm:prose-lg max-w-none text-slate-800 leading-loose font-serif whitespace-pre-wrap relative z-10 selection:bg-transparent">
-              {storyData.content}
-            </div>
+            {/* Watermark hanya muncul jika bukan file PDF (karena iframe akan menutupi) */}
+            {!storyData.pdfUrl && <div className="absolute inset-0 pointer-events-none opacity-[0.02] flex items-center justify-center overflow-hidden"><p className="text-[150px] font-black -rotate-45 whitespace-nowrap">RAHASIA</p></div>}
+            
+            {/* Tampilan Konten Teks vs PDF */}
+            {storyData.pdfUrl ? (
+              <div className="relative z-10 w-full rounded-2xl overflow-hidden border-2 border-slate-200">
+                 <iframe src={`${storyData.pdfUrl}#toolbar=0&navpanes=0&scrollbar=0`} className="w-full h-[75vh]" title="Document PDF"></iframe>
+              </div>
+            ) : (
+              <div className="prose prose-base sm:prose-lg max-w-none text-slate-800 leading-loose font-serif whitespace-pre-wrap relative z-10 selection:bg-transparent">
+                {storyData.content}
+              </div>
+            )}
             
             {/* AREA BAWAH CERITA (Copyright & Review) */}
             <div className="mt-20 pt-10 border-t-2 border-slate-100 relative z-10">
-              {/* Copyright */}
               <div className="text-center text-slate-400 mb-12">
                  <ShieldAlert className="w-6 h-6 mx-auto mb-3 opacity-50" />
                  <p className="font-bold text-sm">© {new Date(storyData.createdAt || Date.now()).getFullYear()} {authorData?.displayName || 'Author'}. All rights reserved.</p>
                  <p className="text-xs mt-1 max-w-sm mx-auto">Dokumen ini dilindungi enkripsi sistem Cloud. Dilarang menyalin atau mendistribusikan ulang.</p>
               </div>
 
-              {/* Form Review */}
               {!hasReviewed ? (
                 <div className="bg-slate-50 border border-slate-200 rounded-2xl p-6 sm:p-8 max-w-xl mx-auto">
                   <h4 className="font-bold text-lg text-slate-800 mb-1 text-center">Beri Ulasan ke Penulis</h4>
