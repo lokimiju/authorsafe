@@ -14,7 +14,7 @@ import {
 import { 
   Clock, ShieldAlert, Link as LinkIcon, PlusCircle, Copy, AlertTriangle, 
   User, LogOut, BookOpen, Lock, UploadCloud, Star, Edit, Trash2, Search, Settings, 
-  Check, FileText, Globe, Instagram, Camera
+  Check, FileText, Globe, Camera
 } from 'lucide-react';
 
 const firebaseConfig = {
@@ -642,7 +642,7 @@ function AdminDashboard({ user }) {
                <label className="block text-sm font-bold text-slate-700 mb-3">Tautan Sosial Media & Kontak</label>
                <div className="space-y-3">
                   <div className="flex items-center gap-3">
-                     <Instagram className="w-5 h-5 text-pink-600 shrink-0" />
+                     <svg className="w-5 h-5 text-pink-600 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="20" height="20" x="2" y="2" rx="5" ry="5"></rect><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"></path><line x1="17.5" x2="17.51" y1="6.5" y2="6.5"></line></svg>
                      <input type="url" placeholder="https://instagram.com/username" value={authorProfile.social?.instagram} onChange={e => setAuthorProfile({...authorProfile, social: {...authorProfile.social, instagram: e.target.value}})} className="flex-1 px-4 py-2 bg-slate-50 border border-slate-300 rounded-xl outline-none text-sm" />
                   </div>
                   <div className="flex items-center gap-3">
@@ -855,7 +855,7 @@ function ReaderSimulator({ user }) {
                 {/* Ikon Sosial Media Interaktif */}
                 {authorData.social && (
                   <div className="flex items-center gap-2 pt-3 border-t border-slate-100">
-                     {authorData.social.instagram && <a href={authorData.social.instagram} target="_blank" rel="noopener noreferrer" className="p-1.5 bg-pink-50 text-pink-600 hover:bg-pink-100 rounded-lg transition-colors"><Instagram className="w-4 h-4" /></a>}
+                     {authorData.social.instagram && <a href={authorData.social.instagram} target="_blank" rel="noopener noreferrer" className="p-1.5 bg-pink-50 text-pink-600 hover:bg-pink-100 rounded-lg transition-colors"><svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="20" height="20" x="2" y="2" rx="5" ry="5"></rect><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"></path><line x1="17.5" x2="17.51" y1="6.5" y2="6.5"></line></svg></a>}
                      {authorData.social.twitter && <a href={authorData.social.twitter} target="_blank" rel="noopener noreferrer" className="p-1.5 bg-slate-100 text-slate-800 hover:bg-slate-200 rounded-lg transition-colors"><svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 22.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg></a>}
                      {authorData.social.tiktok && <a href={authorData.social.tiktok} target="_blank" rel="noopener noreferrer" className="p-1.5 bg-slate-100 text-slate-800 hover:bg-slate-200 rounded-lg transition-colors"><svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.05-2.89-.35-4.2-.97-.57-.26-1.1-.59-1.62-.93v7.12c-.01 2.45-1.04 4.88-2.85 6.54-2.52 2.3-6.43 2.91-9.52 1.48-3.32-1.52-5.45-5.18-4.9-8.81.48-3.15 3.06-5.83 6.17-6.52 1.05-.24 2.15-.3 3.22-.16v4.06c-.84-.13-1.74-.01-2.48.43-.86.51-1.43 1.39-1.63 2.36-.29 1.45.62 3.03 2.01 3.52 1.25.44 2.7.2 3.65-.68.84-.77 1.25-1.93 1.27-3.07V.02h.98z"/></svg></a>}
                      {authorData.social.website && <a href={authorData.social.website} target="_blank" rel="noopener noreferrer" className="p-1.5 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 rounded-lg transition-colors"><Globe className="w-4 h-4" /></a>}
