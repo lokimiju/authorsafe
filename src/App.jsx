@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { initializeApp } from 'firebase/app';
 import { 
-  getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken, 
+  getAuth, signInAnonymously, onAuthStateChanged,  
   signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut,
   GoogleAuthProvider, signInWithPopup, sendPasswordResetEmail
 } from 'firebase/auth';
@@ -14,7 +14,7 @@ import {
 import { 
   Clock, ShieldAlert, Link as LinkIcon, PlusCircle, Copy, AlertTriangle, 
   User, LogOut, BookOpen, Lock, UploadCloud, Star, Edit, Trash2, Search, Settings, 
-  Check, FileText, Globe, Instagram, Twitter, ExternalLink, Camera
+  Check, FileText, Globe, Instagram, Twitter, Camera
 } from 'lucide-react';
 
 const firebaseConfig = {
