@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { initializeApp } from 'firebase/app';
 import { 
-  getAuth, signInAnonymously, onAuthStateChanged,  
+  getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken, 
   signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut,
   GoogleAuthProvider, signInWithPopup, sendPasswordResetEmail
 } from 'firebase/auth';
@@ -14,7 +14,7 @@ import {
 import { 
   Clock, ShieldAlert, Link as LinkIcon, PlusCircle, Copy, AlertTriangle, 
   User, LogOut, BookOpen, Lock, UploadCloud, Star, Edit, Trash2, Search, Settings, 
-  Check, FileText, Globe, Instagram, Twitter, Camera
+  Check, FileText, Globe, Instagram, Camera
 } from 'lucide-react';
 
 const firebaseConfig = {
@@ -29,7 +29,7 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
-const storage = getStorage(app); // INISIALISASI FIREBASE STORAGE
+const storage = getStorage(app); 
 const appId = 'writer-dashboard-v3';
 
 // Konfigurasi Tema Author
@@ -249,8 +249,8 @@ function AdminDashboard({ user }) {
   const [title, setTitle] = useState('');
   const [genre, setGenre] = useState('');
   const [content, setContent] = useState('');
-  const [pdfFile, setPdfFile] = useState(null); // File PDF yang di-drop
-  const [savedPdfUrl, setSavedPdfUrl] = useState(''); // URL PDF yang sudah di database
+  const [pdfFile, setPdfFile] = useState(null); 
+  const [savedPdfUrl, setSavedPdfUrl] = useState(''); 
   const [isSaving, setIsSaving] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
 
@@ -270,7 +270,7 @@ function AdminDashboard({ user }) {
     const unsubProfile = onSnapshot(profileRef, (snap) => {
       if (snap.exists()) {
         const data = snap.data();
-        if (!data.social) data.social = { instagram: '', twitter: '', tiktok: '', website: '' }; // Fallback data lama
+        if (!data.social) data.social = { instagram: '', twitter: '', tiktok: '', website: '' }; 
         setAuthorProfile(data);
       } else {
         setDoc(profileRef, authorProfile); 
@@ -315,7 +315,6 @@ function AdminDashboard({ user }) {
       await uploadBytes(storageRef, file);
       const url = await getDownloadURL(storageRef);
       setAuthorProfile(prev => ({ ...prev, photoURL: url }));
-      // Otomatis simpan ke database setelah upload
       await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'authors', user.uid), { photoURL: url });
     } catch (err) {
       alert("Gagal mengunggah foto.");
@@ -337,7 +336,7 @@ function AdminDashboard({ user }) {
       reader.readAsText(file);
     } else if (file.type === "application/pdf" || file.name.endsWith('.pdf')) {
       setPdfFile(file);
-      setContent(''); // Kosongkan teks jika pilih PDF
+      setContent(''); 
     } else {
       alert("Format tidak didukung. Mohon masukkan file teks (.txt) atau dokumen (.pdf)");
     }
@@ -349,7 +348,6 @@ function AdminDashboard({ user }) {
     
     let finalPdfUrl = savedPdfUrl;
 
-    // Jika ada file PDF baru yang di-drop, unggah ke Storage
     if (pdfFile) {
       try {
         const storageRef = ref(storage, `stories/${user.uid}_${Date.now()}_${pdfFile.name}`);
@@ -367,7 +365,7 @@ function AdminDashboard({ user }) {
     
     const storyPayload = {
       id: storyId, title, content, genre,
-      pdfUrl: finalPdfUrl, // Simpan URL PDF di database cerita
+      pdfUrl: finalPdfUrl, 
       authorId: user.uid, authorEmail: user.email, 
       updatedAt: Date.now()
     };
@@ -548,7 +546,6 @@ function AdminDashboard({ user }) {
                       <p className="text-xs font-bold text-slate-800 truncate">{t.storyTitle}</p>
                       <p className={`text-[10px] font-bold uppercase mt-0.5 ${t.status === 'pending' ? 'text-amber-600' : 'text-emerald-600'}`}>{t.status}</p>
                     </div>
-                    {/* BAGIAN COPY FIX */}
                     <button onClick={() => {navigator.clipboard.writeText(t.id); setCopied(t.id); setTimeout(()=>setCopied(''),2000)}} className="p-1.5 bg-white border border-slate-200 rounded-lg hover:bg-slate-100 text-slate-600 shrink-0">
                       {copied === t.id ? <Check className="w-4 h-4 text-emerald-500"/> : <Copy className="w-4 h-4" />}
                     </button>
@@ -649,7 +646,7 @@ function AdminDashboard({ user }) {
                      <input type="url" placeholder="https://instagram.com/username" value={authorProfile.social?.instagram} onChange={e => setAuthorProfile({...authorProfile, social: {...authorProfile.social, instagram: e.target.value}})} className="flex-1 px-4 py-2 bg-slate-50 border border-slate-300 rounded-xl outline-none text-sm" />
                   </div>
                   <div className="flex items-center gap-3">
-                     <Twitter className="w-5 h-5 text-sky-500 shrink-0" />
+                     <svg className="w-5 h-5 text-slate-800 shrink-0" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 22.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
                      <input type="url" placeholder="https://x.com/username" value={authorProfile.social?.twitter} onChange={e => setAuthorProfile({...authorProfile, social: {...authorProfile.social, twitter: e.target.value}})} className="flex-1 px-4 py-2 bg-slate-50 border border-slate-300 rounded-xl outline-none text-sm" />
                   </div>
                   <div className="flex items-center gap-3">
@@ -859,7 +856,7 @@ function ReaderSimulator({ user }) {
                 {authorData.social && (
                   <div className="flex items-center gap-2 pt-3 border-t border-slate-100">
                      {authorData.social.instagram && <a href={authorData.social.instagram} target="_blank" rel="noopener noreferrer" className="p-1.5 bg-pink-50 text-pink-600 hover:bg-pink-100 rounded-lg transition-colors"><Instagram className="w-4 h-4" /></a>}
-                     {authorData.social.twitter && <a href={authorData.social.twitter} target="_blank" rel="noopener noreferrer" className="p-1.5 bg-sky-50 text-sky-500 hover:bg-sky-100 rounded-lg transition-colors"><Twitter className="w-4 h-4" /></a>}
+                     {authorData.social.twitter && <a href={authorData.social.twitter} target="_blank" rel="noopener noreferrer" className="p-1.5 bg-slate-100 text-slate-800 hover:bg-slate-200 rounded-lg transition-colors"><svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 22.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg></a>}
                      {authorData.social.tiktok && <a href={authorData.social.tiktok} target="_blank" rel="noopener noreferrer" className="p-1.5 bg-slate-100 text-slate-800 hover:bg-slate-200 rounded-lg transition-colors"><svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.05-2.89-.35-4.2-.97-.57-.26-1.1-.59-1.62-.93v7.12c-.01 2.45-1.04 4.88-2.85 6.54-2.52 2.3-6.43 2.91-9.52 1.48-3.32-1.52-5.45-5.18-4.9-8.81.48-3.15 3.06-5.83 6.17-6.52 1.05-.24 2.15-.3 3.22-.16v4.06c-.84-.13-1.74-.01-2.48.43-.86.51-1.43 1.39-1.63 2.36-.29 1.45.62 3.03 2.01 3.52 1.25.44 2.7.2 3.65-.68.84-.77 1.25-1.93 1.27-3.07V.02h.98z"/></svg></a>}
                      {authorData.social.website && <a href={authorData.social.website} target="_blank" rel="noopener noreferrer" className="p-1.5 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 rounded-lg transition-colors"><Globe className="w-4 h-4" /></a>}
                      {(!authorData.social.instagram && !authorData.social.twitter && !authorData.social.tiktok && !authorData.social.website) && <p className="text-xs text-slate-400 italic">Belum ada tautan sosial</p>}
